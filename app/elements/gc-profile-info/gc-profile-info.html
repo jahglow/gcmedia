@@ -1,0 +1,481 @@
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/firebase-element/firebase-auth.html">
+<link rel="import" href="../../bower_components/firebase-element/firebase-collection.html">
+<link rel="import" href="../../bower_components/firebase-element/firebase-document.html">
+<link rel="import" href="../../bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="../../bower_components/paper-dialog-scrollable/paper-dialog-scrollable.html">
+<link rel="import" href="../../bower_components/paper-button/paper-button.html">
+<link rel="import" href="../../bower_components/neon-animation/animations/scale-up-animation.html">
+<link rel="import" href="../../bower_components/neon-animation/animations/fade-out-animation.html">
+<link rel="import" href="../../bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="../../bower_components/paper-item/paper-icon-item.html">
+<link rel="import" href="../../bower_components/paper-input/paper-input.html">
+<link rel="import" href="../../bower_components/paper-styles/color.html">
+<link rel="import" href="../../bower_components/paper-material/paper-material.html">
+<link rel="import" href="../../bower_components/iron-image/iron-image.html">
+<link rel="import" href="../../bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="../../bower_components/iron-flex-layout/iron-flex-layout.html">
+<link rel="import" href="../gc-social-icons/gc-social-icons.html">
+
+<dom-module id="gc-login">
+  <style>
+    #authDialog paper-listbox paper-icon-item iron-icon {
+      display: inline-block;
+      box-sizing: border-box;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--paper-light-blue-500);
+      color:white;
+    }
+    #authDialog.fullscreen{
+      top:0;bottom:0;right:0;left:0;
+      position:fixed;
+      margin:0;
+    }
+    .auth-header {text-align:center}
+    .login-social paper-icon-button{
+      color:var(--accent-color);
+    }
+    .login-social{
+      text-align: center;
+      font-size:13px;
+    }
+    .loginButton{
+      display:block;
+      background: var(--accent-color);
+      color:white;
+      margin:16px 0 0 0;
+    }
+    .message {
+      display: block;
+      border-radius: 2px;
+      color:white;
+    }
+    .loginCard,.message{
+      padding:16px;
+      margin:1px -8px 16px -8px;
+    }
+    .success{background-color: var(--paper-green-300);}
+    .error{background-color: var(--paper-red-500);}
+    .info{background-color: var(--paper-light-blue-300);}
+    .authContainer{
+      max-width:400px;
+      min-width:300px;
+      margin:0 auto;
+    }
+    .forgotPassword{
+      text-align: right;
+      padding-top:8px;
+    }
+    #forgotPassword{
+      color: var(--accent-color);
+      text-transform:none;
+    }
+    #loginInterface ::content iron-icon img{border-radius:50%}
+    .layoutRow{
+      @apply(--layout-horizontal);
+      @apply(--layout-wrap);
+    }
+    .layoutRow>.profileIcon{
+      @apply(--layout-flex-1);
+      padding-right:20px;
+    }
+    .profileIcon>iron-icon,
+    .profileIcon>iron-image{
+      width:96px;
+      height:96px;
+      border-radius: 50%;
+    }
+    .layoutRow>.profileInfo{
+      @apply(--layout-flex-2);
+    }
+    .layoutRow>.profileInfo{
+      @apply(--layout-flex-2);
+      min-width: 260px;
+    }
+    #profileDialog{
+      max-width: 426px;
+      min-width: 280px;
+      right:-16px;
+      top:46px;
+      position:fixed;
+    }
+  </style>
+  <template>
+    <firebase-auth id="firebaseLogin"
+                   user="{{user}}"
+                   status-known="{{statusKnown}}"
+                   location="https://gcmedia.firebaseio.com"
+                   provider="{{provider}}"
+                   on-error="errorHandler"
+                   on-user-created="userSuccessHandler"
+                   on-password-changed="userSuccessHandler"
+                   on-password-reset="userSuccessHandler"
+                   on-user-removed="userSuccessHandler"></firebase-auth>
+    <firebase-collection id="fc" order-by-key="__firebaseKey__" limit-to-first="1" equal-to="{{user.uid}}" log data="{{_matchedUser}}"></firebase-collection>
+    <paper-icon-button id="loginInterface" style="width:50px;height:50px"></paper-icon-button>
+
+
+
+    <paper-dialog entry-animation="scale-up-animation" exit-animation="fade-out-animation" id="authDialog" >
+      <paper-dialog-scrollable>
+        <div class="authContainer">
+          <div class$="message {{messageType}}" hidden$="{{!message}}">{{message}}</div>
+          <div style="height:100%">
+            <paper-material elevation="1" class="loginCard">
+              <div class="auth-header">
+                <iron-icon icon="account-circle" style="width:150px;height:150px; color:#CCCCCC"></iron-icon>
+              </div>
+              <paper-input label="E-mail" error-message="Неверный email!" value="{{email}}" type="email" auto-validate></paper-input>
+              <paper-input id="password" label="Пароль" value="{{password}}" type="password"></paper-input>
+              <paper-button raised class="loginButton" id="loginButton" on-tap="loginPassword" disabled$="{{_computeCreateUserDisabled(email, password)}}">Войти</paper-button>
+              <div class="forgotPassword"> <paper-button on-tap="showForgotPassword" noink style="text-transform: none" id="forgotPassword">Забыли пароль?</paper-button></div>
+            </paper-material>
+            <paper-button style="display: block;margin-bottom: 8px" id="alternativeAction" on-tap="showCreateAccount">Создать аккаунт</paper-button>
+            <div class="login-social">
+              Войти через учетную запись:<br>
+              <paper-icon-button icon="gc-social-icons:google" data-provider="google" on-tap="loginSocial" title="Google"></paper-icon-button>
+              <paper-icon-button icon="gc-social-icons:facebook" data-provider="facebook" on-tap="loginSocial" title="Facebook"></paper-icon-button>
+              <paper-icon-button icon="gc-social-icons:twitter" data-provider="twitter" on-tap="loginSocial" title="Twitter"></paper-icon-button>
+            </div>
+          </div>
+        </div>
+      </paper-dialog-scrollable>
+    </paper-dialog>
+
+    <template is="dom-if" if="{{user}}">
+      <paper-dialog id="profileDialog">
+        <paper-dialog-scrollable>
+          <div class="layoutRow">
+            <div class="profileIcon">
+              <iron-icon icon="account-circle" hidden$="{{userImage}}"></iron-icon>
+              <iron-image src$="{{userImage}}" sizing="cover"  hidden$="{{!userImage}}"></iron-image>
+            </div>
+            <div class="profileInfo">
+              <div class="displayName">{{_user.displayName}}</div>
+              <div class="email">{{_user.email}}</div>
+              <div hidden$="{{!_isTemporaryPassword}}">
+                <span class="message error">У вас временный пароль, действительный 24 часа. Настоятельно рекомендуем сменить его! <paper-button style="display:inline-block;">Сменить пароль</paper-button></span>
+              </div>
+            </div>
+          </div>
+        </paper-dialog-scrollable>
+        <div class="buttons">
+          <paper-button on-tap="goToAccount">Мой аккаунт</paper-button>
+          <paper-button on-tap="logout">Выйти</paper-button>
+        </div>
+      </paper-dialog>
+    </template>
+  </template>
+</dom-module>
+<script>
+  Polymer({
+    is: 'gc-login',
+    listeners:{'fc.firebase-value':'registerUser'},
+    properties: {
+      /**
+       * engine that authenticates the user: `password` or social networks
+       * */
+      provider: {
+        type: String,
+        value:'password'
+      },
+      /**
+       * System message to th user on some operations
+       * */
+      message: {
+        type: String,
+        value: ''
+      },
+      /**
+       * on success and error there are som system messages which are categorized into `success`, `error` and `info`
+       * */
+      messageType:{
+        type:String,
+        value:''
+      },
+
+      email: {
+        type: String,
+        value: ''
+      },
+      /*
+      * Change `route.path` to go to a new location
+      * */
+      route:{
+        type:Object,
+        notify:true
+      },
+
+      password: {
+        type: String,
+        value: ''
+      },
+      /**
+       * Object containing user data when auth is successful
+       * */
+      user: {
+        type: Object,
+        value: null,
+        notify:true
+      },
+      /**
+       * if `provider` is `password`, the password might be temporary
+       * this helps notify the user in the profile info about it
+       * */
+      _isTemporaryPassword:{
+        type:Boolean,
+        value:false
+      },
+      /**
+       * convenience object containing user data
+       * */
+      _user:{
+        type: Object,
+        computed: '_getUserInfo(user)'
+      },
+      /**
+       * User avatar
+       * */
+      userImage:{
+        type:String,
+        computed:'_getUserImage(user)'
+      },
+      statusKnown: {
+        type: Boolean
+      }
+
+    },
+    observers:[
+      'closeAuthDialog(user)',
+      'computeLoginStatus(statusKnown, user)'
+    ],
+    goToAccount:function(){
+      this.set('route.path','/account');
+      this.$$('#profileDialog').close();
+    },
+    closeAuthDialog:function(user){
+      if(user && this.$.authDialog.opened){this.$.authDialog.close();}
+    },
+    /**
+     * displays default 'login' page
+     * */
+    showLoginPage:function(e){
+      var lb=this.$.loginButton;
+      this.unlisten(lb, 'tap', 'createUserHandler');
+      this.unlisten(lb, 'tap', 'resetPasswordHandler');
+      this.listen(lb, 'tap', 'login');
+      Polymer.dom(lb).textContent = 'Войти';
+      this.querySelector('.authContainer .login-social').style.display='block';
+      this.$.password.hidden=this.$.forgotPassword.hidden=false;
+      var aa= this.$.alternativeAction;
+      Polymer.dom(aa).textContent = 'Создать аккаунт';
+      this.unlisten(aa, 'tap', 'showLoginPage');
+      this.listen(aa, 'tap', 'showCreateAccount');
+    },
+    /**
+     * Displays 'create new account' page
+     * */
+    showCreateAccount:function(e){
+      var lb=this.$.loginButton;
+      this.unlisten(lb, 'tap', 'login');
+      this.listen(lb, 'tap', 'createUserHandler');
+      Polymer.dom(lb).textContent = 'Создать аккаунт';
+      this.querySelector('.authContainer .login-social').style.display='none';
+      var aa= this.$.alternativeAction;
+      Polymer.dom(aa).textContent = 'Отмена';
+      this.unlisten(aa, 'tap', 'showCreateAccount');
+      this.listen(aa, 'tap', 'showLoginPage');
+    },
+    /**
+     * displays forgot password page
+     * */
+    showForgotPassword:function(e){
+      this.$.password.hidden=this.$.forgotPassword.hidden=true;
+      this.querySelector('.authContainer .login-social').style.display='none';
+      var lb=this.$.loginButton;
+      Polymer.dom(lb).textContent = 'Сбросить пароль';
+      this.unlisten(lb, 'tap', 'login');
+      this.listen(lb, 'tap', 'resetPasswordHandler');
+      this.password='undefined';
+
+      var aa= this.$.alternativeAction;
+      Polymer.dom(aa).textContent = 'Отмена';
+      this.unlisten(aa, 'tap', 'showCreateAccount');
+      this.listen(aa, 'tap', 'showLoginPage');
+    },
+    /**
+     * opens dialog to login
+     * */
+    openAuthDialog:function(){
+      this.$.authDialog.open();
+    },
+    /**
+     * opens dialog for quick profile
+     * */
+    openProfileDialog:function(){
+      this.$$('#profileDialog').open();
+    },
+    /**
+     * attempts a login with a social network
+     * */
+    loginSocial:function(e){
+      var target=Polymer.dom(e).path.filter(function(item){return item.localName==='paper-icon-button'})[0];
+      this.provider = target.getAttribute('data-provider');
+      this.$.firebaseLogin.login({});
+    },
+    /**
+     * attempts a login with a password
+     * */
+    loginPassword:function(){
+      this.provider = 'password';
+      if (this.email.length>0 && this.password.length>0) {
+        var params = {};
+        params.email = this.email;
+        params.password = this.password;
+        this.$.firebaseLogin.login(params);
+      } else {console.error('Attempted to login with email with email/password missing')}
+    },
+    /**
+     * clears all fields
+     * */
+    _clearForm:function(){
+      this.provider='password';
+      this.message=this.messageType=this.email=this.password=this.userImage='';
+      this._isTemporaryPassword=false;
+    },
+    /**
+     * performs a logout
+     * */
+    logout: function() {
+      this._clearForm();
+      this.$.firebaseLogin.logout();
+    },
+    /**
+     * displays friendly errors
+     * */
+    errorHandler: function(e) {
+      this.message = 'Ошибка: ';
+      switch (e.detail.code) {
+        case "INVALID_EMAIL": this.message += 'Указан неверный email адрес';
+          break;
+        case "INVALID_PASSWORD": this.message += 'Учетной записи с такой комбинацией логина и пароля не найдено';
+          break;
+        case "INVALID_USER": this.message += 'Такого пользователя не существует';
+          break;
+        default:
+          console.error("Проблема входа:", e.detail);
+      }
+      this.messageType='error';
+    },
+    /**
+     * called on successful operation: `user-created`, `password-changed`, `password-reset`, `user-deleted`
+     * */
+    userSuccessHandler: function(e) {
+      if(e.type!=='password-reset'){
+        this.login();
+      } else {
+        this.message = 'На почту '+this.email+ ' отправлено письмо с временным новым паролем, который действителен 24 часа. Не забудьте его сменить.';
+        this.messageType='info';
+        this.password='';
+        this.showLoginPage();
+      }
+    },
+    /**
+     * displays avatar image or account-circle icon
+     * */
+    showAvatar:function(isLoggedIn){
+      var el = this.$.loginInterface;
+      if(!isLoggedIn){
+        el.icon='account-circle';
+        el.src=null;
+        el.title="Войти";
+        this.unlisten(el, 'tap', 'openProfileDialog');
+        this.listen(el, 'tap', 'openAuthDialog');
+      } else {
+        var image = this.userImage;
+        this.unlisten(el, 'tap', 'openAuthDialog');
+        this.listen(el, 'tap', 'openProfileDialog');
+        if(image){
+          el.icon=null;
+          el.src=image;
+        } else {
+          el.icon='account-circle';
+          el.src=null;
+        }
+        el.title='Учетная запись';
+      }
+    },
+    _getUserImage:function(user){
+      if(user){
+        var image = user[user.provider].profileImageURL;
+        return image.length>0 ? image : null ;
+      } else {return null;}
+    },
+    _getUserInfo:function(user){
+      if(user){
+        if(user.provider==='password' && user.password.isTemporaryPassword){
+          this._isTemporaryPassword = true;
+        }
+        return user[user.provider];
+      } else {return null;}
+    },
+    createUserHandler: function(e) {
+      this.$.firebaseLogin.createUser(this.email, this.password);
+    },
+
+    changePasswordHandler: function() {
+      this.$.firebaseLogin.changePassword(this.email, this.password, this.newPassword);
+    },
+
+    resetPasswordHandler: function() {
+      this.$.firebaseLogin.sendPasswordResetEmail(this.email);
+    },
+
+    removeUserHandler: function() {
+      this.$.firebaseLogin.removeUser(this.email, this.password);
+    },
+
+    _computeCreateUserDisabled: function(email, password) {
+      return !email || !password;
+    },
+
+    registerUser:function(u){
+      if(this.user && this.$.fc.data.length==0){
+        this.$.fc.query.ref().child(this.user.uid).set({provider:this.user.provider, displayName: this._getName()});
+        this.goToAccount();
+      }
+    },
+    _getName:function(){
+      switch(this.user.provider){
+        case 'password': return this.user.password.email.replace(/@.*/,''); break;
+        case 'facebook': case 'twitter': case 'google': return this.user[this.user.provider].displayName; break;
+      }
+    },
+    computeLoginStatus: function(statusKnown, user) {
+      if (statusKnown && user) {
+        this.showAvatar(true);
+        this.$.fc.location = "https://gcmedia.firebaseio.com/users";
+        return true;
+      }
+      if (statusKnown) {
+        this.showAvatar(false);
+        this.$.fc.location = '';
+        return false;
+      }
+      this.showAvatar(false);
+      this.$.fc.location = '';
+      return false;
+    }
+  });
+</script>

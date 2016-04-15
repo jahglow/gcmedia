@@ -1,0 +1,161 @@
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+
+<link rel="import" href="..\..\bower_components/polymer/polymer.html">
+<link rel="import" href="..\..\bower_components/paper-input/paper-input.html">
+<link rel="import" href="..\..\bower_components/paper-input/paper-textarea.html">
+<link rel="import" href="..\..\bower_components/paper-toggle-button/paper-toggle-button.html">
+<link rel="import" href="..\..\bower_components/r-dropdown/r-dropdown.html">
+<link rel="import" href="..\..\bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="..\..\bower_components/paper-item/paper-item.html">
+<link rel="import" href="..\..\bower_components/paper-dialog/paper-dialog.html">
+<link rel="import" href="..\..\bower_components/paper-dialog-scrollable/paper-dialog-scrollable.html">
+<link rel="import" href="..\..\bower_components/iron-media-query/iron-media-query.html">
+<link rel="import" href="..\..\bower_components/iron-flex-layout/iron-flex-layout.html">
+
+
+<dom-module id="gc-prayer-need">
+  <template strip-whitespace>
+    <style>
+      :host {
+        display: block;
+      }
+      .padded{
+        padding-bottom:16px;
+      }
+      #dialog{
+        width:600px;
+      }
+      #dialog[narrow]{
+        @apply(--layout-fit);
+        @apply(--layout-vertical);
+        width:100%;
+        position:fixed;
+        margin:0;
+      }
+      #dialog[narrow] .dialog-content{
+        @apply(--layout-flex);
+        max-height: calc(100% - 78px);
+        overflow-y: auto;
+      }
+      #dialog[narrow] .buttons{border-top:1px solid #cfcfcf}
+    </style>
+    <iron-media-query query="(max-width:600px) and (orientation: portrait) , (max-width:900px)  and (orientation: landscape)" query-matches="{{queryMatches}}"></iron-media-query>
+    <paper-dialog id="dialog" modal narrow$="{{queryMatches}}">
+      <h2>Молитвенная просьба</h2>
+      <div class="dialog-content">
+        <div >
+        <paper-input label="Заголовок" value="{{_prayer.title}}" autofocus type="text" maxlength="40"></paper-input>
+        <div class="padded">
+          <paper-tooltip position="top">Вкратце расскажите о чем мы могли бы молиться за вас</paper-tooltip>
+          <paper-textarea label="Текст" value="{{_prayer.text}}" required char-counter maxlength="700" max-rows="3"></paper-textarea>
+        </div>
+        <div class="padded">
+          <paper-tooltip position="top">Активный статус молитвенной просьбы означает, что за этот вопрос необходимо молиться. Если вы получили ответ, можно деактивировать просьбу.</paper-tooltip>
+          <paper-toggle-button id="active" checked="{{_prayer.active}}">Активно</paper-toggle-button>
+        </div>
+        <div class="padded">
+          <paper-tooltip position="top">Является ли ваша молитвенная просьба срочной?</paper-tooltip>
+          <paper-toggle-button checked="{{_prayer.urgent}}">Срочно</paper-toggle-button>
+        </div>
+        <div class="padded">
+          <paper-tooltip position="top">Если ваша просьба анонимная, ваше имя и фото профиля не будет отображаться рядом с ней</paper-tooltip>
+          <paper-toggle-button checked="{{_prayer.anonymous}}">Анонимно</paper-toggle-button>
+        </div>
+        <div>
+          <paper-tooltip position="top">Кто будет видеть вашу молитвенную просьбу? По умолчанию  - все (включая незарегистрированных)</paper-tooltip>
+          <r-dropdown label="Приватность" vertical-align="bottom">
+            <paper-listbox class="dropdown-content" selected="{{_prayer.access}}">
+              <paper-item>Все</paper-item>
+              <paper-item>Зарегестрированные</paper-item>
+              <paper-item>Молитвенная команда</paper-item>
+            </paper-listbox>
+          </r-dropdown>
+        </div>
+        <div>
+          <paper-tooltip position="top">Возможно, когда за вашу просьбу будут молиться, люди могут получить слово от Бога касательно этого вопроса. Здесь вы можете регуулировать, от кого вы можете получать сообщение, которое увидите только вы.</paper-tooltip>
+          <r-dropdown label="Комментарии" vertical-align="bottom">
+            <paper-listbox class="dropdown-content" selected="{{_prayer.reply}}">
+              <paper-item>Отключены</paper-item>
+              <paper-item>От зарегестрированных</paper-item>
+              <paper-item>От молитвенной команды</paper-item>
+            </paper-listbox>
+          </r-dropdown>
+        </div>
+          </div>
+        </div>
+      <div class="buttons">
+        <paper-button on-tap="cancelPost">Отмена</paper-button>
+        <paper-button id="submit" on-tap="doPost">Добавить</paper-button>
+      </div>
+    </paper-dialog>
+
+  </template>
+  <script>
+    (function() {
+      'use strict';
+
+      Polymer({
+        is: 'gc-prayer-need',
+        listeners:{
+          //'iron-overlay-closed':'onDismiss'
+        },
+
+        properties: {
+          /**
+           * object received and returned to `gc-prayer-list` which resembles a single prayer request
+           * */
+          prayer: {
+            type: Object,
+            value:{},
+            notify: true
+          },
+          _prayer:{
+            type: Object,
+            computed:'_tempPrayer(prayer,edited)'
+          },
+          /**
+           * if false then it's a new prayer
+           * */
+          edited:{
+            type:Boolean,
+            value:false
+          },
+          user:{
+            type:Object
+          },
+          queryMatches:{
+            type:Boolean,
+            value:false
+          }
+        },
+        open:function(){
+          this.$.dialog.open();
+        },
+        /**
+         * creates a copy of the data not to change it
+         * */
+        _tempPrayer:function(prayer,edited){
+          console.log(prayer);
+          console.log(edited);
+          return JSON.parse(JSON.stringify(prayer))
+        },
+        cancelPost:function(){
+          this.$.dialog.close();
+        },
+        doPost:function(){
+          if(!this._prayer.uid){this._prayer.uid = this.user.uid;}//we don't want to replace uid if edited by admin
+          this.prayer = JSON.parse(JSON.stringify(this._prayer));
+          this.$.dialog.close();
+        }
+      });
+    })();
+  </script>
+</dom-module>

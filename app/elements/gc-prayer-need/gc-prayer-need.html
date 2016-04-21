@@ -20,7 +20,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="..\..\bower_components/iron-media-query/iron-media-query.html">
 <link rel="import" href="..\..\bower_components/iron-flex-layout/iron-flex-layout.html">
 
-
 <dom-module id="gc-prayer-need">
   <template strip-whitespace>
     <style>
@@ -45,8 +44,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         max-height: calc(100% - 78px);
         overflow-y: auto;
       }
+      .warning{color:var(--paper-red-500);}
       #dialog[narrow] .buttons{border-top:1px solid #cfcfcf}
     </style>
+
     <iron-media-query query="(max-width:600px) and (orientation: portrait) , (max-width:900px)  and (orientation: landscape)" query-matches="{{queryMatches}}"></iron-media-query>
     <paper-dialog id="dialog" modal narrow$="{{queryMatches}}">
       <h2>Молитвенная просьба</h2>
@@ -59,7 +60,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
         <div class="padded">
           <paper-tooltip position="top">Активный статус молитвенной просьбы означает, что за этот вопрос необходимо молиться. Если вы получили ответ, можно деактивировать просьбу.</paper-tooltip>
-          <paper-toggle-button id="active" checked="{{_prayer.active}}">Активно</paper-toggle-button>
+          <paper-toggle-button id="active" checked="{{_prayer.active}}" disabled$="{{_canActivate(_prayer.flagged,user)}}"><span hidden$="{{_checkFlagged(_prayer.flagged,_prayer.active)}}">Активно</span><span class="warning" hidden$="{{!_checkFlagged(_prayer.flagged,_prayer.active)}}">Отключено по жалобе. Активировать?</span></paper-toggle-button>
         </div>
         <div class="padded">
           <paper-tooltip position="top">Является ли ваша молитвенная просьба срочной?</paper-tooltip>
@@ -71,7 +72,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
         <div>
           <paper-tooltip position="top">Кто будет видеть вашу молитвенную просьбу? По умолчанию  - все (включая незарегистрированных)</paper-tooltip>
-          <r-dropdown label="Приватность" vertical-align="bottom">
+          <r-dropdown label="Приватность" vertical-align="bottom" horizontal-align="left">
             <paper-listbox class="dropdown-content" selected="{{_prayer.access}}">
               <paper-item>Все</paper-item>
               <paper-item>Зарегестрированные</paper-item>
@@ -81,7 +82,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
         <div>
           <paper-tooltip position="top">Возможно, когда за вашу просьбу будут молиться, люди могут получить слово от Бога касательно этого вопроса. Здесь вы можете регуулировать, от кого вы можете получать сообщение, которое увидите только вы.</paper-tooltip>
-          <r-dropdown label="Комментарии" vertical-align="bottom">
+          <r-dropdown label="Комментарии" vertical-align="bottom" horizontal-align="left">
             <paper-listbox class="dropdown-content" selected="{{_prayer.reply}}">
               <paper-item>Отключены</paper-item>
               <paper-item>От зарегестрированных</paper-item>
@@ -93,7 +94,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
       <div class="buttons">
         <paper-button on-tap="cancelPost">Отмена</paper-button>
-        <paper-button id="submit" on-tap="doPost">Добавить</paper-button>
+        <paper-button id="submit" on-tap="doPost" disabled$="{{_checkFlagged(_prayer.flagged,_prayer.active)}}">{{_computePostButton(edited)}}</paper-button>
       </div>
     </paper-dialog>
 
@@ -143,17 +144,47 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
          * creates a copy of the data not to change it
          * */
         _tempPrayer:function(prayer,edited){
-          console.log(prayer);
-          console.log(edited);
-          return JSON.parse(JSON.stringify(prayer))
+          if(!prayer.hasOwnProperty('access')){this.set('prayer.access',0)}
+          if(!prayer.hasOwnProperty('reply')){this.set('prayer.reply',1)}
+          if(!prayer.hasOwnProperty('active')){this.set('prayer.active',true)}
+          return prayer
+        },
+        _computePostButton:function(edited){
+          return edited ? 'Сохранить' : 'Добавить';
         },
         cancelPost:function(){
           this.$.dialog.close();
+          this.prayer={};
+        },
+        _checkFlagged:function(flagged,active){
+          if(flagged && !active){return true} else if(flagged && active){this._prayer.flagged = false; return false;} else {return false}
+        },
+        _canActivate:function(flagged,user){
+          return flagged && user.status>1 ? false : flagged;
         },
         doPost:function(){
-          if(!this._prayer.uid){this._prayer.uid = this.user.uid;}//we don't want to replace uid if edited by admin
-          this.prayer = JSON.parse(JSON.stringify(this._prayer));
+          if(!this._prayer.by){//we don't want to replace uid if edited by admin
+            this._prayer.by = {
+              uid: this.user.__firebaseKey__,
+              name: this.user.displayName,
+              avatar: this.user.avatar
+            };
+            this._prayer.prayers=0; // set initial number of prayers
+            this._prayer.created = new Date().getTime();
+            this.fire('prayer-need-created',this._prayer);
+          } else {
+            this.prayer = JSON.parse(JSON.stringify(this._prayer));
+            var blacklist = ['__firebaseKey__','by','created','prayers'];
+            for(var i=0;i<blacklist.length;i++){
+              delete this.prayer[i];
+            }
+            this.fire('prayer-need-updated',{
+              key: this._prayer.__firebaseKey__,
+              data: this.prayer
+            });
+          }
           this.$.dialog.close();
+
         }
       });
     })();

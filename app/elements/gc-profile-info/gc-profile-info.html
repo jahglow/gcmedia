@@ -122,10 +122,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                    on-password-changed="userSuccessHandler"
                    on-password-reset="userSuccessHandler"
                    on-user-removed="userSuccessHandler"></firebase-auth>
-    <firebase-collection id="fc" order-by-key="__firebaseKey__" limit-to-first="1" equal-to="{{user.uid}}" log data="{{_matchedUser}}"></firebase-collection>
+    <firebase-collection id="fc" order-by-key="__firebaseKey__" limit-to-first="1" equal-to="{{user.uid}}"></firebase-collection>
     <paper-icon-button id="loginInterface" style="width:50px;height:50px"></paper-icon-button>
-
-
 
     <paper-dialog entry-animation="scale-up-animation" exit-animation="fade-out-animation" id="authDialog" >
       <paper-dialog-scrollable>
@@ -244,6 +242,20 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         type: Object,
         computed: '_getUserInfo(user)'
       },
+  /**
+   * Logged-in user's account details
+   * @param {{provider:String, displayName: String, avatar: String, email: String, status: 0}}
+   *
+   * `status` can be:
+   * 1. `1` - regular user
+   * 1. `2` - editor / elevated permissions
+   * 1. `7` - admin
+   * */
+      account:{
+        type:Object,
+        value:null,
+        notify:true
+      },
       /**
        * User avatar
        * */
@@ -252,7 +264,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         computed:'_getUserImage(user)'
       },
       statusKnown: {
-        type: Boolean
+        type: Boolean,
+        value:false
       }
 
     },
@@ -260,10 +273,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       'closeAuthDialog(user)',
       'computeLoginStatus(statusKnown, user)'
     ],
+
     goToAccount:function(){
       this.set('route.path','/account');
       this.$$('#profileDialog').close();
     },
+
     closeAuthDialog:function(user){
       if(user && this.$.authDialog.opened){this.$.authDialog.close();}
     },
@@ -274,7 +289,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       var lb=this.$.loginButton;
       this.unlisten(lb, 'tap', 'createUserHandler');
       this.unlisten(lb, 'tap', 'resetPasswordHandler');
-      this.listen(lb, 'tap', 'login');
+      this.listen(lb, 'tap', 'loginPassword');
       Polymer.dom(lb).textContent = 'Войти';
       this.querySelector('.authContainer .login-social').style.display='block';
       this.$.password.hidden=this.$.forgotPassword.hidden=false;
@@ -288,7 +303,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
      * */
     showCreateAccount:function(e){
       var lb=this.$.loginButton;
-      this.unlisten(lb, 'tap', 'login');
+      this.unlisten(lb, 'tap', 'loginPassword');
       this.listen(lb, 'tap', 'createUserHandler');
       Polymer.dom(lb).textContent = 'Создать аккаунт';
       this.querySelector('.authContainer .login-social').style.display='none';
@@ -305,7 +320,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       this.querySelector('.authContainer .login-social').style.display='none';
       var lb=this.$.loginButton;
       Polymer.dom(lb).textContent = 'Сбросить пароль';
-      this.unlisten(lb, 'tap', 'login');
+      this.unlisten(lb, 'tap', 'loginPassword');
       this.listen(lb, 'tap', 'resetPasswordHandler');
       this.password='undefined';
 
@@ -383,7 +398,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
      * */
     userSuccessHandler: function(e) {
       if(e.type!=='password-reset'){
-        this.login();
+        this.loginPassword();
       } else {
         this.message = 'На почту '+this.email+ ' отправлено письмо с временным новым паролем, который действителен 24 часа. Не забудьте его сменить.';
         this.messageType='info';
@@ -449,11 +464,22 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     _computeCreateUserDisabled: function(email, password) {
       return !email || !password;
     },
-
+    /**
+     * registers a logged in user in the system if a user with such id doesn't exist in /users
+     * */
     registerUser:function(u){
-      if(this.user && this.$.fc.data.length==0){
-        this.$.fc.query.ref().child(this.user.uid).set({provider:this.user.provider, displayName: this._getName()});
+      console.log(u);
+      if(this.user && this.$.fc.data.length===0){ //register new user
+        this.$.fc.query.ref().child(this.user.uid).set({
+          provider:this.user.provider,
+          displayName: this._getName(),
+          avatar: this._getUserImage(this.user),
+          email: this.user.password? this.user.password.email: false,
+          status: 0
+        });
         this.goToAccount();
+      } else if(this.$.fc.data.length!==0){//feed user's local account details
+        this.account = this.$.fc.data[0];
       }
     },
     _getName:function(){

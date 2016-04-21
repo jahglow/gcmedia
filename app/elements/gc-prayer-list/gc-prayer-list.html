@@ -14,6 +14,18 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="..\..\bower_components/paper-fab-transitions/paper-fab-speed-dial.html">
 <link rel="import" href="..\..\bower_components/paper-tooltip/paper-tooltip.html">
 <link rel="import" href="..\..\bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="..\..\bower_components/iron-flex-layout/iron-flex-layout.html">
+<link rel="import" href="..\..\bower_components/firebase-element/firebase-collection.html">
+<link rel="import" href="..\..\bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="..\..\bower_components/iron-icon/iron-icon.html">
+<link rel="import" href="..\..\bower_components/paper-icon-button/paper-icon-button.html">
+<link rel="import" href="..\..\bower_components/paper-menu-button/paper-menu-button.html">
+<link rel="import" href="..\..\bower_components/paper-listbox/paper-listbox.html">
+<link rel="import" href="..\..\bower_components/paper-item/paper-icon-item.html">
+<link rel="import" href="..\..\bower_components/iron-image/iron-image.html">
+<link rel="import" href="..\..\bower_components/paper-toggle-button/paper-toggle-button.html">
+<link rel="import" href="..\..\bower_components/paper-toast/paper-toast.html">
+
 <link rel="import" href="../gc-prayer-need/gc-prayer-need.html">
 
 <dom-module id="gc-prayer-list">
@@ -22,20 +34,108 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       :host {
         display: block;
       }
+      .column{
+        @apply(--layout-vertical);
+      }
+      .column paper-card{
+        margin-bottom:16px;
+      }
+      .card-header{
+        @apply(--layout-horizontal);
+        padding-bottom:16px;
+      }
+      .card-header .heading{
+        @apply(--layout-flex);
+        @apply(--layout-vertical);
+        padding-left:16px;
+      }
+      .card-header .heading>*{
+        @apply(--layout-flex-auto);
+      }
+      .card-header .title {
+        font-size: 20px;
+      }
+      .card-header .subheader {
+        font-size: 12px;
+        color:var(--secondary-text-color);
+      }
+      .avatar>paper-icon-button ::content iron-icon img{border-radius:50%}
+      .avatar>paper-icon-button {
+        height:50px;
+        width:50px;
+        padding:0;
+      }
+
+      paper-icon-item[value="delete"]{
+        border-top:1px solid var(--divider-color);
+        color:var(--paper-red-400);
+      }
+      paper-listbox {cursor:default}
+      .menu>paper-menu-button{
+        --paper-menu-button:{
+          padding:0;
+          margin-top:-8px;
+          margin-right:-8px;
+        };
+      }
+      paper-card[urgent]{
+        background: var(--paper-red-50);
+      }
+      paper-card[flagged]{
+        background: var(--paper-red-500);
+        color: #FFFFFF;
+      }
+      paper-card[inactive]{
+        background: var(--paper-grey-200);
+      }
     </style>
-    <template is="dom-repeat" items="{{prayers}}" as="prayer">
-      <paper-card heading="{{_computeHeading(prayer)}}" id="{{prayer.id}}">
-        <div class="card-content">{{prayer.text}}{{prayer.text}}</div>
+
+    <firebase-collection id="prayers"
+                         order-by-child="access"
+                         start-at="{{_access.start}}" end-at="{{_access.end}}"
+                         order-value-type="number"
+                         limit-to-last="16"
+                         location="https://gcmedia.firebaseio.com/pray"
+                         data="{{prayers}}"></firebase-collection>
+    <paper-toast id="toast"></paper-toast>
+    <div class="column">
+    <paper-toggle-button checked="{{urgentFirst}}" style="margin-bottom:32px">Сначала срочные</paper-toggle-button>
+    <template is="dom-repeat" items="{{filtered}}" as="prayer">
+      <paper-card id="{{prayer.__firebaseKey__}}" urgent$="{{prayer.urgent}}" inactive$="{{!prayer.active}}" flagged$="{{prayer.flagged}}" >
+        <div class="card-content">
+          <div class="card-header">
+            <div class="avatar">
+              <paper-icon-button src="{{_computeAvatar(prayer,'image')}}" icon="{{_computeAvatar(prayer,'icon')}}" disabled noink></paper-icon-button>
+            </div>
+            <div class="heading">
+              <div class="title">{{_computeHeading(prayer)}}</div>
+              <div class="subheader">От {{_computeName(prayer)}} - {{convertDate(prayer.created)}}</div>
+            </div>
+            <template is="dom-if" if="{{user}}">
+              <div class="menu">
+                <paper-menu-button horizontal-align="right">
+                  <paper-icon-button icon="more-vert" class="dropdown-trigger"></paper-icon-button>
+                    <paper-listbox class="dropdown-content" attr-for-selected="value" on-iron-select="_doAction" data-key="{{prayer.__firebaseKey__}}">
+                      <paper-icon-item value="bookmark" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>В закладки</paper-icon-item>
+                      <paper-icon-item value="message" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>Написать автору</paper-icon-item>
+                      <paper-icon-item value="flag" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="report"></iron-icon>Пожаловаться</paper-icon-item>
+                      <paper-icon-item value="edit" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="create"></iron-icon>Редактировать</paper-icon-item>
+                      <paper-icon-item value="testify" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="record-voice-over"></iron-icon>Свидетельствовать</paper-icon-item>
+                      <paper-icon-item value="delete" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="delete"></iron-icon>Удалить</paper-icon-item>
+                    </paper-listbox>
+                </paper-menu-button>
+              </div>
+            </template>
+          </div>
+          {{prayer.text}}
+        </div>
         <div class="card-actions">
-          <paper-icon-button icon="create" on-tap="edit"></paper-icon-button>
           <paper-button>Я помолился</paper-button>
         </div>
       </paper-card>
     </template>
-
+  </div>
     <template is="dom-if" if="{{user}}">
-
-
 
       <paper-dialog id="testimony" modal>
         <h2>Свидетельство</h2>
@@ -62,6 +162,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
       </paper-fab-speed-dial>
 
+      <gc-prayer-need id="editor" user="{{user}}" prayer="{{prayer}}" edited="{{edited}}"></gc-prayer-need>
     </template>
 
   </template>
@@ -71,89 +172,174 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
       Polymer({
         is: 'gc-prayer-list',
+        listeners:{
+          'prayer-need-created':'createPrayer',
+          'prayer-need-updated':'updatePrayer',
+          'prayers.firebase-value':'_filterPrayers'
+        },
 
         properties: {
           user:{
-            type:Object
+            type:Object,
+            value:null
           },
           prayers: {
             type: Array,
-            value: function(){
-              return [
-                {
-                  id:132,
-                  author: 'johnarcher',
-                  title: 'Prayer request',
-                  text:' this is a simple prayer request',
-                  prayers: 5,
-                  access:0,
-                  active:true,
-                  urgent:true,
-                  allowComments:true
-                },
-                {
-                  id:123,
-                  author: 'johnarcher',
-                  title: 'Prayer request#3',
-                  text:' this is a simple prayer request#3',
-                  prayers: 7,
-                  access:0,
-                  anonymous:true,
-                  active:true
-                },
-                {
-                  id:133,
-                  author: 'johnarcher',
-                  title: 'Prayer request',
-                  text:' this is a simple prayer request',
-                  prayers: 5,
-                  access:0,
-                  active:true,
-                  urgent:true
-
-                },
-                {
-                  id:143,
-                  author: 'johnarcher',
-                  title: 'Prayer request#3',
-                  text:' this is a simple prayer request#3',
-                  prayers: 7,
-                  access:0,
-                  anonymous:true,
-                  active:true
-                },
-                {
-                  id:154,
-                  author: 'johnarcher',
-                  title: 'Prayer request#2',
-                  text:' this is a simple prayer request',
-                  prayers: 10,
-                  access:1,
-                  active:false,
-                  testimony:true
+            value:null
+          },
+          prayer: {
+            type:Object,
+            value:{}
+          },
+          edited:{
+            type:Boolean,
+            value:false
+          },
+          _access:{
+            type:Object,
+            value:{start:0,end:0}
+          },
+          filtered:{
+            type:Array,
+            value:null,
+           //computed:'_filterPrayers(prayers)',
+            notify:true
+          },
+          urgentFirst:{
+            type:Boolean,
+            value:false,
+            observer:'_filterPrayers'
+          }
+        },
+        observers:[
+          'limitQuery(user)'
+        ],
+        _filterPrayers:function(e){
+          if(this.prayers && this.prayers.length>0){
+            var prayers= this.prayers;
+            if(prayers && prayers!=null && prayers.length>0){
+              console.log('prayers not empty');
+              this.set('filtered',prayers.filter(function(prayer){
+                if(this.user && this.user.status>1){
+                  return true; //for admins we return all records uncluding flagged and inactive
+                } else {
+                  return prayer.active && !prayer.flagged; //for users we return only active
                 }
-              ]
+              }.bind(this)).sort(function(a,b){
+                // if urgent are first
+                  var x = (a.urgent===b.urgent)? 0 : a.urgent? -1 : 1;
+                  var y = (a.flagged===b.flagged)? 0 : a.flagged? -1 : 1;
+                  if(this.user && this.user.status>1){ //if admin first are flagged, then urgent, then normal
+                    return y==0? (this.urgentFirst? (x==0? b.created - a.created: x) : b.created - a.created) : y ;
+                  } else {
+                    if(this.urgentFirst){ return x==0? b.created - a.created: x ;} else {
+                      return b.created - a.created; // sorted by date
+                    } // urgent are first sorted by date
+                  }
+
+              }.bind(this)));
             }
           }
+        },
 
+        limitQuery:function(user){
+          if(!user || user==null){
+            this.set('_access',{start:0,end:0});
+          } else {
+            this.set('_access.end',user.status);
+          }
         },
+
         _computeHeading:function(prayer){
-          return prayer.anonymous?'Анонимно':prayer.author;
+          return prayer.title? prayer.title : 'Молитвенная просьба';
         },
+
+        _computeName:function(prayer){
+          return !prayer.anonymous? prayer.by.name : 'Анонимно';
+        },
+
+        _generateMenu:function(e){
+          var key = Polymer.dom(e).path.filter(function(item){return item.localName==='paper-icon-button'})[0].dataKey;
+          this.set('_generatedMenuItems.'+key,true);
+        },
+        /**
+         * @param {Event} e - iron-select event
+         * */
+        _doAction:function(e){
+          console.log(e);
+          var id = Polymer.dom(e).rootTarget.dataKey;
+          var action = Polymer.dom(e).event.detail.item.getAttribute('value');
+          Polymer.dom(e).rootTarget.selected='';
+          switch(action){
+            case 'edit': this.edited=true; this.prayer = this.$.prayers.getByKey(id); this.$$('#editor').open(); break;
+            case 'delete': ; break;
+            case 'testify': ; break;
+            case 'flag': this.flagPrayer(this.$.prayers.getByKey(id)); break;
+            case 'bookmark': ; break;
+          }
+        },
+
+        flagPrayer:function(prayer){
+          var key = this.prayers.indexOf(prayer);
+          this.set('prayers.'+key+'.flagged',true);
+          this.set('prayers.'+key+'.active',false);
+          this.$.toast.show('Ваша жалоба отправлена. Спасибо за содействие!');
+        },
+        _computeAccess:function(user,prayer){
+          if(user && user.__firebaseKey__){
+            return user.__firebaseKey__ === prayer.by.uid || user.status===7;
+          } else {
+            return false
+          }
+        },
+
+        convertDate:function(date){
+          var d = new Date();
+          var nd = new Date(date);
+          var days = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+          var months = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг", "Сен","Окт","Ноя", "Дек"];
+          return days[nd.getDay()]+', '+ nd.getDate() + ' ' + months[nd.getMonth()] + ' '+ (d.getFullYear()===nd.getFullYear()?'':nd.getFullYear() + ' ') + 'в ' + nd.getHours()+':'+nd.getMinutes();
+        },
+
+        _computeAvatar:function(prayer,type){
+          if(prayer.anonymous){
+            return type==='image'?'':'account-circle';
+          } else if(prayer.by.avatar){
+            return type==='image'? prayer.by.avatar :'';
+          } else {
+            return type!=='image'? 'account-circle':'';
+          }
+        },
+
+        createPrayer:function(e){
+          this.$.prayers.add(Polymer.dom(e).event.detail);
+          this._setDefaults();
+          this.$.toast.show('Молитвенная просьба успешно добавлена');
+        },
+        updatePrayer:function(e){
+          var result=Polymer.dom(e).event.detail;
+          var key = this.prayers.indexOf(this.$.prayers.getByKey(result.key));
+          for(var item in result.data){
+            this.set('prayers.'+key+'.'+item,result.data[item]);
+          }
+          this._setDefaults();
+          this.$.toast.show('Молитвенная просьба успешно изменена');
+        },
+        _setDefaults:function(){
+          this.prayer={};
+          this.edited=false;
+        },
+
         edit:function(e){
-          var id= Polymer.dom(e).path.filter(function(item){return item.localName==='paper-card'})[0].id;
-          var modal=this.create('gc-prayer-need',{user:this.user, edited:true, prayer: this.prayers.filter(function(prayer){return prayer.id===parseInt(id)})[0]});
-          Polymer.dom(this.root).appendChild(modal);
-          modal.open();
+          var id=Polymer.dom(e).path.filter(function(item){return item.localName==='paper-card'})[0].id;
         },
         openNewPrayer:function(){
-          var modal=this.create('gc-prayer-need',{user:this.user});
-          Polymer.dom(this.root).appendChild(modal);
-          modal.open();
+          this.$$('#editor').open();
         },
         openNewTestimony:function(){
           this.$$('#testimony').open();
         }
+
       });
     })();
   </script>

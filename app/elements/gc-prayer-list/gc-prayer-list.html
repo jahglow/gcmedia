@@ -25,8 +25,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <link rel="import" href="..\..\bower_components/iron-image/iron-image.html">
 <link rel="import" href="..\..\bower_components/paper-toggle-button/paper-toggle-button.html">
 <link rel="import" href="..\..\bower_components/paper-toast/paper-toast.html">
+<link rel="import" href="..\..\bower_components/paper-spinner/paper-spinner-lite.html">
+<link rel="import" href="..\..\bower_components/neon-animation/neon-animated-pages.html">
+<link rel="import" href="..\..\bower_components/neon-animation/animations/slide-left-animation.html">
+<link rel="import" href="..\..\bower_components/neon-animation/animations/slide-right-animation.html">
 
 <link rel="import" href="../gc-prayer-need/gc-prayer-need.html">
+
 
 <dom-module id="gc-prayer-list">
   <template>
@@ -34,12 +39,11 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       :host {
         display: block;
       }
-      .column{
-        @apply(--layout-vertical);
-      }
-      .column paper-card{
+      :host paper-card{
         margin-bottom:16px;
+        display:block;
       }
+      [hidden]{display:none}
       .card-header{
         @apply(--layout-horizontal);
         padding-bottom:16px;
@@ -65,7 +69,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         width:50px;
         padding:0;
       }
-
       paper-icon-item[value="delete"]{
         border-top:1px solid var(--divider-color);
         color:var(--paper-red-400);
@@ -90,18 +93,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       }
     </style>
 
-
-    <firebase-collection id="prayers"
-                         order-by-child="access"
-                         start-at="{{_access.start}}" end-at="{{_access.end}}"
-                         order-value-type="number"
-                         limit-to-last="16"
-                         location="https://gcmedia.firebaseio.com/pray"
-                         data="{{prayers}}"></firebase-collection>
-    <paper-toast id="toast"></paper-toast>
-    <div class="column">
-    <paper-toggle-button checked="{{urgentFirst}}" style="margin-bottom:32px">Сначала срочные</paper-toggle-button>
-    <template is="dom-repeat" items="{{filtered}}" as="prayer">
+    <div align="center" hidden$="{{prayers}}"><paper-spinner-lite active$="{{!prayers}}"></paper-spinner-lite></div>
+    <template is="dom-repeat" items="{{prayers}}" as="prayer">
       <paper-card id="{{prayer.__firebaseKey__}}" urgent$="{{prayer.urgent}}" inactive$="{{!prayer.active}}" flagged$="{{prayer.flagged}}" >
         <div class="card-content">
           <div class="card-header">
@@ -116,14 +109,14 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
               <div class="menu">
                 <paper-menu-button horizontal-align="right">
                   <paper-icon-button icon="more-vert" class="dropdown-trigger"></paper-icon-button>
-                    <paper-listbox class="dropdown-content" attr-for-selected="value" on-iron-select="_doAction" data-key="{{prayer.__firebaseKey__}}">
-                      <paper-icon-item value="bookmark" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>В закладки</paper-icon-item>
-                      <paper-icon-item value="message" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>Написать автору</paper-icon-item>
-                      <paper-icon-item value="flag" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="report"></iron-icon>Пожаловаться</paper-icon-item>
-                      <paper-icon-item value="edit" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="create"></iron-icon>Редактировать</paper-icon-item>
-                      <paper-icon-item value="testify" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="record-voice-over"></iron-icon>Свидетельствовать</paper-icon-item>
-                      <paper-icon-item value="delete" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="delete"></iron-icon>Удалить</paper-icon-item>
-                    </paper-listbox>
+                  <paper-listbox class="dropdown-content" attr-for-selected="value" on-iron-select="_doAction" data-key="{{prayer.__firebaseKey__}}">
+                    <paper-icon-item value="bookmark" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>В закладки</paper-icon-item>
+                    <paper-icon-item value="message" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="star-border"></iron-icon>Написать автору</paper-icon-item>
+                    <paper-icon-item value="flag" hidden$="{{_computeAccess(user,prayer)}}"><iron-icon item-icon icon="report"></iron-icon>Пожаловаться</paper-icon-item>
+                    <paper-icon-item value="edit" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="create"></iron-icon>Редактировать</paper-icon-item>
+                    <paper-icon-item value="testify" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="record-voice-over"></iron-icon>Свидетельствовать</paper-icon-item>
+                    <paper-icon-item value="delete" hidden$="{{!_computeAccess(user,prayer)}}"><iron-icon item-icon icon="delete"></iron-icon>Удалить</paper-icon-item>
+                  </paper-listbox>
                 </paper-menu-button>
               </div>
             </template>
@@ -135,9 +128,133 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         </div>
       </paper-card>
     </template>
-  </div>
-    <template is="dom-if" if="{{user}}">
+  </template>
+</dom-module>
 
+<script>
+  (function() {
+    'use strict';
+
+    Polymer({
+      is: 'gc-prayer-list',
+
+      properties: {
+        user:{
+          type:Object,
+          value:null
+        },
+        prayers: {
+          type: Array,
+          value: []
+        }
+      },
+
+      _computeHeading:function(prayer){
+        return prayer.title? prayer.title : 'Молитвенная просьба';
+      },
+
+      _computeName:function(prayer){
+        return !prayer.anonymous? prayer.by.name : 'Анонимно';
+      },
+
+      /**
+       * @param {Event} e - iron-select event
+       * */
+      _doAction:function(e){
+        var id = Polymer.dom(e).rootTarget.dataKey;
+        var action = Polymer.dom(e).event.detail.item.getAttribute('value');
+        Polymer.dom(e).rootTarget.selected=''; // disable persisting selection to perform this action again if necessary
+        switch(action){
+          case 'edit': this.fire('edit-prayer',{id:id}); break;
+          case 'delete': this.fire('delete-prayer',{id:id}); break;
+          case 'testify': this.fire('testify-prayer',{id:id}); break;
+          case 'flag': this.fire('flag-prayer',{id:id}); break;
+          case 'bookmark': this.fire('bookmark-prayer',{id:id}); break;
+          case 'message': this.fire('message-prayer',{id:id}); break;
+        }
+      },
+
+      convertDate:function(date){
+        var d = new Date();
+        var nd = new Date(date);
+        var days = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+        var months = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг", "Сен","Окт","Ноя", "Дек"];
+        function doubleDigit(digit){
+          return digit<10?'0'+digit:digit;
+        }
+        return days[nd.getDay()]+', '+ nd.getDate() + ' ' + months[nd.getMonth()] + ' '+ (d.getFullYear()===nd.getFullYear()?'':nd.getFullYear() + ' ') + 'в ' + doubleDigit(nd.getHours()) +':'+doubleDigit(nd.getMinutes());
+      },
+
+      _computeAvatar:function(prayer,type){
+        if(prayer.anonymous){
+          return type==='image'?'':'account-circle';
+        } else if(prayer.by.avatar){
+          return type==='image'? prayer.by.avatar :'';
+        } else {
+          return type!=='image'? 'account-circle':'';
+        }
+      },
+      _computeAccess:function(user,prayer){
+        if(user && user.__firebaseKey__){
+          return user.__firebaseKey__ === prayer.by.uid || user.status===7;
+        } else {
+          return false
+        }
+      }
+    });
+  })();
+
+</script>
+
+
+<dom-module id="gc-prayer-room">
+  <template>
+    <style>
+      :host {
+        display: block;
+        height:100%
+      }
+      /*gc-prayer-list{
+        @apply(--layout-vertical);
+      }*/
+      .section{display:none}
+      .section[active]{
+        display:block
+      }
+    </style>
+
+    <carbon-route route="{{route}}" pattern="/" tail="{{prayTail}}" active="{{prayPageActive}}"></carbon-route>
+    <carbon-route route="{{route}}" pattern="/prayer-room/:page" tail="{{prayerRoomTail}}" active="{{prayerRoomPageActive}}"></carbon-route>
+
+index {{prayPageActive}} room {{prayerRoomPageActive}}
+
+    <firebase-collection id="prayers"
+                         order-by-child="access"
+                         start-at="{{_access.start}}" end-at="{{_access.end}}"
+                         order-value-type="number"
+                         limit-to-last="16"
+                         location="https://gcmedia.firebaseio.com/pray"
+                         data="{{prayers}}"></firebase-collection>
+
+    <paper-toast id="toast"></paper-toast>
+
+    <div class="section" active$="[[prayPageActive]]">
+      For unregistered
+    </div>
+
+    <div class="section" active$="[[prayerRoomPageActive]]">
+      <paper-toggle-button checked="{{urgentFirst}}" style="margin-bottom:32px">Сначала срочные</paper-toggle-button>
+      <gc-prayer-list prayers="[[filtered]]"
+                      user="[[user]]"
+                      on-edit-prayer="editPrayer"
+                      on-delete-prayer="deletePrayer"
+                      on-testify-prayer="testifyPrayer"
+                      on-flag-prayer="flagPrayer"
+                      on-bookmark-prayer="bookmarkPrayer"
+                      on-message-prayer="messagePrayer"
+                      id="prayerList"></gc-prayer-list>
+    </div>
+    <template is="dom-if" if="{{user}}">
       <paper-dialog id="testimony" modal>
         <h2>Свидетельство</h2>
         <paper-dialog-scrollable>
@@ -172,7 +289,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       'use strict';
 
       Polymer({
-        is: 'gc-prayer-list',
+        is: 'gc-prayer-room',
         listeners:{
           'prayer-need-created':'createPrayer',
           'prayer-need-updated':'updatePrayer',
@@ -196,14 +313,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             type:Boolean,
             value:false
           },
-          _access:{
-            type:Object,
-            value:{start:0,end:0}
-          },
           filtered:{
             type:Array,
             value:null,
-           //computed:'_filterPrayers(prayers)',
+            //computed:'_filterPrayers(prayers)',
             notify:true
           },
           urgentFirst:{
@@ -228,16 +341,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
                 }
               }.bind(this)).sort(function(a,b){
                 // if urgent are first
-                  var x = (a.urgent===b.urgent)? 0 : a.urgent? -1 : 1;
-                  var y = (a.flagged===b.flagged)? 0 : a.flagged? -1 : 1;
-                  if(this.user && this.user.status>1){ //if admin first are flagged, then urgent, then normal
-                    return y==0? (this.urgentFirst? (x==0? b.created - a.created: x) : b.created - a.created) : y ;
-                  } else {
-                    if(this.urgentFirst){ return x==0? b.created - a.created: x ;} else {
-                      return b.created - a.created; // sorted by date
-                    } // urgent are first sorted by date
-                  }
-
+                var x = (a.urgent===b.urgent)? 0 : a.urgent? -1 : 1;
+                var y = (a.flagged===b.flagged)? 0 : a.flagged? -1 : 1;
+                if(this.user && this.user.status>1){ //if admin first are flagged, then urgent, then normal
+                  return y==0? (this.urgentFirst? (x==0? b.created - a.created: x) : b.created - a.created) : y ;
+                } else {
+                  if(this.urgentFirst){ return x==0? b.created - a.created: x ;} else {
+                    return b.created - a.created; // sorted by date
+                  } // urgent are first sorted by date
+                }
               }.bind(this)));
             }
           }
@@ -246,70 +358,45 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         limitQuery:function(user){
           if(!user || user==null){
             this.set('_access',{start:0,end:0});
+            this.set('route.path','/');
           } else {
             this.set('_access.end',user.status);
+            this.set('route.path','/prayer-room/');
           }
         },
 
-        _computeHeading:function(prayer){
-          return prayer.title? prayer.title : 'Молитвенная просьба';
-        },
 
-        _computeName:function(prayer){
-          return !prayer.anonymous? prayer.by.name : 'Анонимно';
-        },
-
-        _generateMenu:function(e){
-          var key = Polymer.dom(e).path.filter(function(item){return item.localName==='paper-icon-button'})[0].dataKey;
-          this.set('_generatedMenuItems.'+key,true);
-        },
         /**
-         * @param {Event} e - iron-select event
+         * @param {Event} event - edit-prayer event
          * */
-        _doAction:function(e){
-          console.log(e);
-          var id = Polymer.dom(e).rootTarget.dataKey;
-          var action = Polymer.dom(e).event.detail.item.getAttribute('value');
-          Polymer.dom(e).rootTarget.selected='';
-          switch(action){
-            case 'edit': this.edited=true; this.prayer = this.$.prayers.getByKey(id); this.$$('#editor').open(); break;
-            case 'delete': ; break;
-            case 'testify': ; break;
-            case 'flag': this.flagPrayer(this.$.prayers.getByKey(id)); break;
-            case 'bookmark': ; break;
-          }
+        editPrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          this.prayer = this.$.prayers.getByKey(id);
+          this.edited=true;
+          this.$$('#editor').open();
         },
-
-        flagPrayer:function(prayer){
-          var key = this.prayers.indexOf(prayer);
+        deletePrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          this.prayer = this.$.prayers.getByKey(id);
+        },
+        testifyPrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          this.prayer = this.$.prayers.getByKey(id);
+        },
+        flagPrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          var key = this.prayers.indexOf(this.$.prayers.getByKey(id));
           this.set('prayers.'+key+'.flagged',true);
           this.set('prayers.'+key+'.active',false);
           this.$.toast.show('Ваша жалоба отправлена. Спасибо за содействие!');
         },
-        _computeAccess:function(user,prayer){
-          if(user && user.__firebaseKey__){
-            return user.__firebaseKey__ === prayer.by.uid || user.status===7;
-          } else {
-            return false
-          }
+        bookmarkPrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          this.prayer = this.$.prayers.getByKey(id);
         },
-
-        convertDate:function(date){
-          var d = new Date();
-          var nd = new Date(date);
-          var days = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
-          var months = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг", "Сен","Окт","Ноя", "Дек"];
-          return days[nd.getDay()]+', '+ nd.getDate() + ' ' + months[nd.getMonth()] + ' '+ (d.getFullYear()===nd.getFullYear()?'':nd.getFullYear() + ' ') + 'в ' + nd.getHours()+':'+nd.getMinutes();
-        },
-
-        _computeAvatar:function(prayer,type){
-          if(prayer.anonymous){
-            return type==='image'?'':'account-circle';
-          } else if(prayer.by.avatar){
-            return type==='image'? prayer.by.avatar :'';
-          } else {
-            return type!=='image'? 'account-circle':'';
-          }
+        messagePrayer:function(event){
+          var id = Polymer.dom(event).event.detail.id;
+          this.prayer = this.$.prayers.getByKey(id);
         },
 
         createPrayer:function(e){
@@ -317,6 +404,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           this._setDefaults();
           this.$.toast.show('Молитвенная просьба успешно добавлена');
         },
+
         updatePrayer:function(e){
           var result=Polymer.dom(e).event.detail;
           var key = this.prayers.indexOf(this.$.prayers.getByKey(result.key));
@@ -326,6 +414,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           this._setDefaults();
           this.$.toast.show('Молитвенная просьба успешно изменена');
         },
+
         _setDefaults:function(){
           this.prayer={};
           this.edited=false;

@@ -57,6 +57,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
   <!-- For shared styles, shared-styles.html import in elements.html -->
   <style is="custom-style" include="shared-styles"></style>
+  <style>
+    section{display:none;}
+    section[active]{display:block;}
+  </style>
 </head>
 
 <body unresolved>
@@ -69,10 +73,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     Parameters are extracted into the `data` object. The rest of the path that
     comes after the `pattern` is put into the `tail` object, which can be
     passed to the `route` property of downstream carbon-routes. -->
-    <carbon-route route="{{route}}" pattern="/:page" data="{{data}}"></carbon-route>
-    <carbon-route route="{{route}}" pattern="/pray" tail="{{prayTail}}"></carbon-route>
-    <carbon-route route="{{route}}" pattern="/media" tail="{{mediaTail}}" active="{{videoPageActive}}"></carbon-route>
-    <carbon-route route="{{route}}" pattern="/account" tail="{{accountTail}}" active="{{accountPageActive}}"></carbon-route>
+    <carbon-route route="{{route}}" pattern="/:module" data="{{moduleData}}" tail="{{moduleTail}}"></carbon-route>
 
     <paper-drawer-panel id="paperDrawerPanel">
       <!-- Drawer Scroll Header Panel -->
@@ -103,15 +104,24 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         <paper-toolbar>
             <paper-icon-button id="paperToggle" icon="menu" paper-drawer-toggle></paper-icon-button>
             <span class="title">iPray</span>
-            <paper-icon-button icon="apps"></paper-icon-button>
-          <gc-login account="{{user}}" route="{{route}}"></gc-login>
+          <paper-menu-button horizontal-align="right" vertical-offset="64" vertical-align="top">
+            <paper-icon-button icon="apps" class="dropdown-trigger"></paper-icon-button>
+            <div class="dropdown-content">
+              <iron-selector selected="{{moduleData.module}}" attr-for-selected="data-module">
+                <a href="/pray/" data-module="pray">Pray</a>
+                <a href="/media/" data-module="media">Media</a>
+                <a href="/account/" data-module="account">Account</a>
+              </iron-selector>
+            </div>
+          </paper-menu-button>
+          <gc-login account="{{user}}" route="{{moduleTail}}"></gc-login>
 
           </paper-toolbar>
 
         <!-- Main Content -->
         <div class="content">
-          <iron-pages attr-for-selected="data-route" selected="{{data.page}}">
-            <section data-route="home">
+            <main>
+              <section data-route="home" active$="{{homePageActive}}">
               <paper-material elevation="1">
 
                 <p class="subhead">You now have:</p>
@@ -143,15 +153,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
               </paper-material>
             </section>
 
-            <section data-route="pray">
-              <gc-prayer-list user="{{user}}"></gc-prayer-list>
+            <section data-route="pray" active>
+              <gc-prayer-room user="{{user}}" route="{{moduleTail}}"></gc-prayer-room>
             </section>
 
-            <section data-route="account">
+            <section data-route="account" active$="{{accountPageActive}}">
               Account
             </section>
 
-            <section data-route="media">
+            <section data-route="media" active$="{{mediaPageActive}}">
               <paper-material elevation="1">
                 <paper-icon-button icon="gc-social-icons:google" data-provider="google" ></paper-icon-button>
                 <h2 class="page-title">User: {{params.name}}</h2>
@@ -159,13 +169,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
               </paper-material>
             </section>
 
-            <section data-route="settings">
+            <section data-route="settings" active="{{settingsPageActive}}">
               <paper-material elevation="1">
                 <h2 class="page-title">Contact</h2>
                 <p>This is the contact section</p>
               </paper-material>
             </section>
-          </iron-pages>
+           </main>
         </div>
       </paper-scroll-header-panel>
     </paper-drawer-panel>
